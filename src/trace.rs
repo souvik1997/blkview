@@ -64,7 +64,7 @@ bitflags! {
 
 #[derive(PartialEq, Eq)]
 pub struct EventPDU {
-    pub data: Vec<u8>
+    pub data: Vec<u8>,
 }
 
 #[derive(PartialEq, Eq)]
@@ -79,7 +79,7 @@ pub struct Event {
     pub device: u32,
     pub cpu: u32,
     pub error: u16,
-    pub pdu: Option<EventPDU>
+    pub pdu: Option<EventPDU>,
 }
 
 impl Event {
@@ -93,7 +93,7 @@ impl Event {
                         let mut t = Vec::new();
                         t.extend_from_slice(pdu_data);
                         t
-                    }
+                    },
                 })
             } else {
                 None
@@ -104,7 +104,8 @@ impl Event {
             time: trace.time,
             sector: trace.sector,
             bytes: trace.bytes,
-            action: num::FromPrimitive::from_u32(trace.action & 0xffff).expect("invalid action type"),
+            action: num::FromPrimitive::from_u32(trace.action & 0xffff)
+                .expect("invalid action type"),
             category: Category::from_bits_truncate(((trace.action & 0xffff0000) >> 16) as u16),
             pid: trace.pid,
             device: trace.device,
@@ -126,7 +127,6 @@ impl PartialOrd for Event {
         Some(self.cmp(other))
     }
 }
-
 
 pub struct Trace {
     pub events: Vec<Event>,
@@ -163,8 +163,6 @@ impl Trace {
             acc
         });
         events.sort();
-        Self {
-            events: events
-        }
+        Self { events: events }
     }
 }
