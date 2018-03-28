@@ -1,7 +1,5 @@
 use super::gif::Frame;
-use super::trace::Category;
 use super::trace::Event;
-use std::borrow::Cow;
 
 pub struct Visualizer {
     start_sector: u64,
@@ -20,21 +18,37 @@ impl Visualizer {
         }
     }
 
-    pub fn events_to_frame(&self, events: &[Event]) -> Frame {
-        let mut buffer = vec![255; self.width as usize * self.height as usize];
+    pub fn events_to_heatmap_frame(&self, events: &[Event]) -> Frame {
+        let mut buffer = vec![0 as usize; self.width as usize * self.height as usize];
         for event in events {
             let buffer_range = self.event_to_range(event);
-            let color = self.pick_color(event.category);
             let range = &mut buffer[buffer_range.0..buffer_range.1];
             for i in range.iter_mut() {
-                *i = color;
+                *i += 1;
             }
         }
-        let mut frame = Frame::default();
-        frame.width = self.width;
-        frame.height = self.height;
-        frame.buffer = Cow::from(buffer);
-        frame
+        let max_freq: usize = *buffer.iter().max().unwrap_or(&2);
+        let rgb = buffer.iter().fold(Vec::new(), |mut acc, b| {
+            let color = self.frequency_to_color(*b, 0, max_freq);
+            acc.push(color.0);
+            acc.push(color.1);
+            acc.push(color.2);
+            acc
+        });
+        Frame::from_rgb(self.width, self.height, &rgb)
+    }
+
+    fn frequency_to_color(&self, frequency: usize, min_freq: usize, max_freq: usize) -> (u8, u8, u8) {
+        use super::palette::{Hsl, LinSrgb, RgbHue, pixel::RgbPixel};
+        let hsl = {
+            if frequency == min_freq || min_freq == max_freq {
+                Hsl::new(RgbHue::from(-180.0), 1.0, 0.0)
+            } else {
+                Hsl::new(RgbHue::from((((frequency - min_freq) as f64).log2() / ((max_freq - min_freq) as f64).log2()) * 180.0 + 180.0), 1.0, 0.50)
+            }
+        };
+        let rgba: (f64, f64, f64, f64) = LinSrgb::from(hsl).into_pixel::<(f64, f64, f64)>().to_rgba();
+        ((rgba.0 * 255 as f64) as u8, (rgba.1 * 255 as f64) as u8, (rgba.2 * 255 as f64) as u8)
     }
 
     fn event_to_range(&self, event: &Event) -> (usize, usize) {
@@ -49,36 +63,5 @@ impl Visualizer {
             * (max_index as f64))
             .floor() as usize;
         (start_index, max(end_index, start_index + 1))
-    }
-
-    fn pick_color(&self, category: Category) -> u8 {
-        let mut color: u8 = 255;
-        if category.contains(Category::READ) {
-            color = 170;
-        }
-        if category.contains(Category::WRITE) {
-            color = 10;
-        }
-        /*
-        if category.contains(Category::FLUSH) {
-            color = color | 1 << 2;
-        }
-        if category.contains(Category::SYNC) {
-            color = color | 1 << 3;
-        }
-        if category.contains(Category::QUEUE) {
-            color = color | 1 << 4;
-        }
-        if category.contains(Category::REQUEUE) {
-            color = color | 1 << 5;
-        }
-        if category.contains(Category::ISSUE) {
-            color = color | 1 << 6;
-        }
-        if category.contains(Category::AHEAD) {
-            color = color | 1 << 7;
-        }
-        */
-        color
     }
 }

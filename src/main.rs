@@ -10,6 +10,8 @@ extern crate num_traits;
 extern crate bitflags;
 
 extern crate gif;
+extern crate image;
+extern crate palette;
 
 extern crate rayon;
 
@@ -17,6 +19,7 @@ mod trace;
 mod visualizer;
 use std::path::{Path, PathBuf};
 use trace::*;
+use visualizer::*;
 
 fn main() {
     use clap::{App, Arg};
@@ -37,6 +40,16 @@ fn main() {
             Arg::with_name("output")
                 .short("o")
                 .required(true)
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("width")
+                .short("w")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("height")
+                .short("h")
                 .takes_value(true),
         )
         .get_matches();
@@ -69,33 +82,24 @@ fn main() {
             e.action == Action::Complete && e.category.intersects(Category::READ | Category::WRITE)
         })
         .collect::<Vec<_>>();
-    generate_gif(&complete_events, chunksize, &output);
-}
 
-fn generate_gif(events: &[Event], chunksize: usize, output: &Path) {
-    use gif::{Encoder, Frame, SetParameter};
-    use rayon::prelude::*;
-    use std::fs::File;
-    use visualizer::*;
-    let min_sector = events.iter().map(|event| event.sector).min().unwrap();
-    let max_sector = events
+    let min_sector = complete_events.iter().map(|event| event.sector).min().expect("no events");
+    let max_sector = complete_events
         .iter()
         .map(|event| event.ending_sector())
         .max()
-        .unwrap();
-    let visualizer = Visualizer::new(min_sector, max_sector, 200, 200);
-    let mut image = File::create(output).expect("failed to create file");
-    let mut color_palette = [0 as u8; 256 * 3];
-    for x in 0..256 {
-        let z = (x & 0b11000000) >> 4;
-        let r = x & 0b00000011;
-        let b = (x & 0b00001100) >> 2;
-        let g = (x & 0b00110000) >> 4;
-        color_palette[3 * x] = (r + z) as u8 * 16;
-        color_palette[3 * x + 1] = (g + z) as u8 * 16;
-        color_palette[3 * x + 2] = (b + z) as u8 * 16;
-    }
+        .expect("no events");
+    println!("min sector = {}, max sector = {}", min_sector, max_sector);
+    let visualizer = Visualizer::new(min_sector, max_sector, matches.value_of("width").map(|s| s.parse()).unwrap_or(Ok(200)).unwrap(), matches.value_of("height").map(|s| s.parse()).unwrap_or(Ok(200)).unwrap());
+    generate_gif(&visualizer, &complete_events, chunksize, &output);
+}
 
+fn generate_gif(visualizer: &Visualizer, events: &[Event], chunksize: usize, output: &Path) {
+    use gif::{Encoder, Frame, SetParameter};
+    use rayon::prelude::*;
+    use std::fs::File;
+    let mut image = File::create(output).expect("failed to create file");
+    let color_palette = [0 as u8; 0];
     let mut encoder = Encoder::new(
         &mut image,
         visualizer.width,
@@ -106,7 +110,7 @@ fn generate_gif(events: &[Event], chunksize: usize, output: &Path) {
     let chunks: Vec<&[Event]> = events.chunks(chunksize).collect();
     let frames: Vec<Frame> = chunks
         .par_iter()
-        .map(|chunk| visualizer.events_to_frame(chunk))
+        .map(|chunk| visualizer.events_to_heatmap_frame(chunk))
         .collect();
     println!("Generated {} gif frames", frames.len());
     for frame in &frames {
