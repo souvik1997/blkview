@@ -1,6 +1,4 @@
-use std::path::{Path, PathBuf};
 use std::cmp::Ordering;
-use std::io;
 
 #[repr(C)]
 struct BlkIOTrace {
@@ -16,6 +14,8 @@ struct BlkIOTrace {
     pub error: u16,
     pub pdu_len: u16,
 }
+
+pub const SECTOR_SIZE: usize = 512;
 
 #[derive(FromPrimitive, PartialEq, Eq)]
 pub enum Action {
@@ -84,7 +84,6 @@ pub struct Event {
 
 impl Event {
     fn from_raw(trace: &BlkIOTrace, pdu_data: &[u8]) -> Event {
-        use std::mem;
         use super::num;
         let pdu = {
             if pdu_data.len() > 0 {
@@ -113,6 +112,10 @@ impl Event {
             error: trace.error,
             pdu: pdu,
         }
+    }
+
+    pub fn ending_sector(&self) -> u64 {
+        self.sector + (self.bytes as f64 / SECTOR_SIZE as f64).ceil() as u64
     }
 }
 
