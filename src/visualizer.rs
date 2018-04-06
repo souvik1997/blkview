@@ -42,7 +42,7 @@ impl Visualizer {
         use super::palette::{Hsl, LinSrgb, RgbHue, pixel::RgbPixel};
         let hsl = {
             if frequency == min_freq || min_freq == max_freq {
-                Hsl::new(RgbHue::from(-180.0), 1.0, 0.0)
+                Hsl::new(RgbHue::from(-180.0), 1.0, 1.0)
             } else {
                 Hsl::new(RgbHue::from((((frequency - min_freq) as f64).log2() / ((max_freq - min_freq) as f64).log2()) * 180.0 + 180.0), 1.0, 0.50)
             }
